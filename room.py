@@ -5,6 +5,7 @@ import socket
 #currently the room class can only have 2 clients
 class Room:
 
+
     response = {}
     reciever = []
     clients:dict[socket.socket, int] = {}
@@ -37,7 +38,6 @@ class Room:
 
         if r_type == Protocols.Request.PLAY:
             self.plays[sender_id] = data
-
             #if all the clients have played a move
             if len(self.plays) == len(self.clients):
                 winners = self.detmerine_winners()
@@ -56,8 +56,29 @@ class Room:
                 self.response:str = {'r_type': Protocols.Response.MESSAGE, 'data': 'Waiting for Opponent...'}
                 self.reciever.append(sender)
 
+    def update_win_status(self):
+
+        #FIX LATER!!!
+        if len(self.clients) <= 1:
+            return
+        #if all the clients have played a move
+        if len(self.plays) == len(self.clients):
+            winners = self.detmerine_winners()
+
+            #add scores to all the winners
+            for winner in winners:
+                if winner == -1:
+                    break
+                #if it is a draw
+                self.scores[winner] += 1
+            gamestate = {'plays': self.plays, 'winner_ids': winners, 'scores': self.scores}
+            self.response:str = {'r_type': Protocols.Response.GAMESTATE, 'data': gamestate}
+            self.reciever.extend(self.clients.keys())
+            self.plays = {}
+
     def remove_client(self, conn:socket.socket):
         self.clients.pop(conn)
+        self.update_win_status()
         
     def get_request_reciever(self) -> list:
         copy = self.reciever[:]
@@ -67,6 +88,7 @@ class Room:
     def get_response(self) -> dict:
         return self.response
     
+    "Change when more than 2 player is added!!!"
     def detmerine_winners(self) -> list:
         winners = []
         different_plays = set(self.plays.values())
@@ -81,6 +103,7 @@ class Room:
                 winners.append(id)
         return winners
         
+    "Change when more than 2 player is added!!!"
     def detmerine_winning_hand(self, hand1, hand2) -> str:
         #key beats value
         win_table = {'R': 'S', 'S': 'P', 'P': 'R'}
