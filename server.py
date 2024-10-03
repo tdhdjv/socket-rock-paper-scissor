@@ -11,7 +11,7 @@ class Server:
     running = True
     active_clients:list[socket.socket] = []
     waiting_clients:dict[socket.socket, int] = {}
-    request_queue:list[tuple] = []
+    response_queue:list[tuple] = []
     client_ID = 1
 
     def run(self, host='127.0.0.1', port=1234) -> None:
@@ -85,12 +85,6 @@ class Server:
         del(room)
     
     def handle_client(self, conn:socket.SocketType, data: SimpleNamespace, mask) -> None:
-        #check if the room can still exist
-        room:Room = data.room
-
-        if len(room.clients) < room.MIN_CLIENT_NUM:
-            self.delete_room(room)
-            return
 
         if mask & selectors.EVENT_READ:
             self.handle_recieving(conn, data)
@@ -106,16 +100,18 @@ class Server:
             #handle recieving data
             json_data = json.loads(request.decode('utf-8'))
             room.handle_data(conn, json_data)
-
-            #sending gamestate to room
-            self.request_queue.append((json.dumps(room.get_response()).encode('utf-8'), room.get_request_reciever()))
-            
+            self.response_queue.extend(room.response_queue)
+            room.response_queue = []
         else:
             self.remove_client(conn, room)
+
+            #check if the room can still exist
+            if len(room.clients) < room.MIN_CLIENT_NUM:
+                self.delete_room(room)
            
     def handle_sending(self) -> None:
-        if self.request_queue:
-            request = self.request_queue.pop(0)
+        if self.response_queue:
+            request = self.response_queue.pop(0)
             data = request[0]
             recieving_clients = request[1]
             self.broadcast_group(recieving_clients, data)

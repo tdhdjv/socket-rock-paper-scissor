@@ -1,6 +1,7 @@
 import socket
 import json
 import cmd_control
+import time
 from threading import Thread
 from protocols import Protocols
 
@@ -9,6 +10,7 @@ class Client:
     id = -1
     running = True
     played = False
+    gameOver = False
 
     def run(self, host='127.0.0.1', port=1234) -> None:
         #clear all the screen
@@ -50,13 +52,21 @@ class Client:
             if r_type == Protocols.Response.GAMESTATE:
                 cmd_control.clear_all()
 
+                final_winner = data['final_winner']
                 winners = data['winner_ids']
                 scores = data['scores']
                 plays:dict = data['plays']
 
+                if final_winner != -1:
+                    if final_winner == self.id:
+                        print('YOU WON!!!')
+                    else:
+                        print('YOU LOST')
+                    self.gameOver = True
+                    continue
+                
                 for key, value in plays.items():
-                    print(f'<ClientID: {key}> played: {value}', end=', ')
-                print()
+                    print(f'<ClientID: {key}> played: {value}')
                 for key, value in plays.items():
                     print(f'<ClientID: {key}> scoreL: {scores[key]}')
                 
@@ -74,6 +84,11 @@ class Client:
 
     def send(self):
         while self.running:
+            if self.gameOver:
+                request = json.dumps({'r_type': Protocols.Request.COMMAND, 'data': 'quit'})
+                self.client.send(request.encode('utf-8'))
+                self.gameOver = False
+                self.played = True
             if self.played:
                 continue
             message = ''
@@ -88,7 +103,6 @@ class Client:
                 return
             if len(message) > 0 and message[0] == '/':
                 message = message.removeprefix('/')
-                print(message)
                 request = json.dumps({'r_type': Protocols.Request.COMMAND, 'data': message})
                 self.client.send(request.encode('utf-8'))
             else:
